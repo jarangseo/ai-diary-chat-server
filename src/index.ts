@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -70,7 +71,7 @@ io.on("connection", (socket) => {
 
   // Typing event
   socket.on("user-typing", ({ roomId }: { roomId: string }) => {
-    socket.to(roomId).emit("user-typing", socket.id);
+    socket.to(roomId).emit("user-typing", userName);
   });
 
   socket.on("disconnect", () => {
