@@ -3,6 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { supabase } from "./supabase";
+import { generateAiResponse } from "./ai";
 
 const app = express();
 const httpServer = createServer(app);
@@ -12,6 +13,22 @@ const io = new Server(httpServer, {
     origin: "http://localhost:3000", // Next.js
   },
 });
+
+// Send message to all users in the room
+async function saveMessage(
+  roomId: string,
+  userId: string,
+  content: string,
+  type: "user" | "ai" | "system",
+) {
+  const { error } = await supabase.from("chat_messages").insert({
+    room_id: roomId,
+    user_id: userId,
+    content,
+    type,
+  });
+  return !error;
+}
 
 io.on("connection", (socket) => {
   console.log("a user connected");
@@ -28,22 +45,6 @@ io.on("connection", (socket) => {
     const users = getOnlineUsers(roomId);
     io.to(roomId).emit("online-users", users);
   });
-
-  // Send message to all users in the room
-  async function saveMessage(
-    roomId: string,
-    userId: string,
-    content: string,
-    type: "user" | "ai" | "system",
-  ) {
-    const { error } = await supabase.from("chat_messages").insert({
-      room_id: roomId,
-      user_id: userId,
-      content,
-      type,
-    });
-    return !error;
-  }
 
   socket.on(
     "send-message",
@@ -65,6 +66,26 @@ io.on("connection", (socket) => {
 
       // @ai mention detection
       if (data.content.includes("@ai")) {
+        io.to(data.roomId).emit("user-typing", "AI");
+
+        try {
+          const aiContent = await generateAiResponse(data.roomId);
+
+          if (aiContent) {
+            const aiMessage = {
+              id: crypto.randomUUID(),
+              userId: "ai",
+              userName: "AI",
+              content: aiContent,
+              type: "ai",
+              createdAt: new Date().toISOString(),
+            };
+            io.to(data.roomId).emit("new-message", aiMessage);
+            await saveMessage(data.roomId, "ai", aiContent, "ai");
+          }
+        } catch (error) {
+          console.error("Error generating AI response:", error);
+        }
       }
     },
   );
