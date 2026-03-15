@@ -10,7 +10,10 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:3000", // Next.js
+    origin: [
+      "http://localhost:3000",
+      process.env.CLIENT_URL || "",
+    ].filter(Boolean),
   },
 });
 
